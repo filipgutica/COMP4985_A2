@@ -34,7 +34,8 @@
 #pragma warning (disable: 4096)
 
 BOOL isConnected;
-
+int clientWidth;
+int clientHeight;
 /*------------------------------------------------------------------------------
 --	FUNCTION: WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 --
@@ -288,8 +289,8 @@ void InstantiateUI()
 	int radio_X = 260;
 	
 	GetClientRect(hwnd, &clientArea);
-	int clientWidth = clientArea.right - clientArea.left;
-	int clientHeight = clientArea.bottom - clientArea.top;
+	clientWidth = clientArea.right - clientArea.left;
+	clientHeight = clientArea.bottom - clientArea.top;
 
 	result = CreateTextBox(clientWidth/10, clientHeight * 3/5, 
 		clientWidth * 4/5, clientHeight / 3, hwnd);
@@ -409,6 +410,8 @@ void CommandUIstate()
 
 void ServerUIstate()
 {
+	MoveWindow(hwnd, 50, 50, 400, 200, 1);
+	MoveWindow(result, 0, 0, 400, 200, 1);
 	ShowWindow(result, TRUE);
 	ShowWindow(editCtlIP, FALSE);
 	ShowWindow(editCtlPort, FALSE);
@@ -421,10 +424,13 @@ void ServerUIstate()
 	ShowWindow(labaelNumTimes, FALSE);
 	ShowWindow(dropDown1, FALSE);
 	ShowWindow(dropDown2, FALSE);
+	
 }
 
 void ClientUIstate()
-{				
+{	
+	MoveWindow(hwnd, 50, 50, 700, 500, 1);
+	MoveWindow(result, clientWidth/10, clientHeight * 3/5, clientWidth * 4/5, clientHeight / 3, 1);
 	ShowWindow(editCtlIP, TRUE);
 	ShowWindow(btn, TRUE);
 	ShowWindow(labelIP, TRUE);
