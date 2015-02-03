@@ -136,19 +136,12 @@ DWORD WINAPI ListenThread(LPVOID lpParameter)
          return 0;
       }
 
-      // Post a WSARecv request to to begin receiving data on the socket
+      //Read the socket to begin receiving data
 
       Flags = 0;
-      if (WSARecv(SocketArray[EventTotal]->Socket, 
-         &(SocketArray[EventTotal]->DataBuf), 1, &RecvBytes, &Flags,
-         &(SocketArray[EventTotal]->Overlapped), NULL) == SOCKET_ERROR)
-      {
-         if (WSAGetLastError() != ERROR_IO_PENDING)
-         {
-            printf("WSARecv() failed with error %d\n", WSAGetLastError());
-            return 0;
-         }
-      }
+	  RecvBytes = ReadSocket(&SocketArray[EventTotal]->Socket, 
+		  &(SocketArray[EventTotal]->DataBuf), Flags, 
+		  &(SocketArray[EventTotal]->Overlapped));
 
 
       EventTotal++;
@@ -177,7 +170,7 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 	DWORD BytesTransferred;
 	DWORD i;
 	DWORD RecvBytes = 0;
-	DWORD SendBytes;
+	DWORD BytesSent;
 	char temp[TEMP_BUFSIZE];
 	HWND hwnd = (HWND)lpParameter;
 	
@@ -215,7 +208,7 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 			sprintf(temp, "Closing socket %d", SI->Socket);
 			infoVector.push_back(temp);	
 			
-			infoVector.clear();
+			//infoVector.clear();
 			TotalBytes = 0;
 
 			if (closesocket(SI->Socket) == SOCKET_ERROR)
@@ -276,24 +269,14 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 			{
 				sprintf(temp, "Total Received bytes: %d", TotalBytes);
 				infoVector.push_back(temp);
-				char c[64] = "\0";
-				sprintf(c, "%d", TotalBytes);
-				SI->DataBuf.buf = c;
-				SI->DataBuf.len = strlen(c);
 
-				sprintf(temp, "Sending: %s", SI->DataBuf.buf);
-				infoVector.push_back(temp);
+				sprintf(temp, "%d", TotalBytes);
+				SI->DataBuf.buf = temp;
+				SI->DataBuf.len = strlen(temp);
 
-				if (WSASend(SI->Socket, &(SI->DataBuf), 1, &SendBytes, 0,
-					&(SI->Overlapped), NULL) == SOCKET_ERROR)
-				{
-					if (WSAGetLastError() != ERROR_IO_PENDING)
-					{
-						sprintf(temp, "WSASend() failed with error %d", WSAGetLastError());
-						SetWindowText(hwnd, temp);
-						return 0;
-					}
-				}
+				while (BytesSent != strlen(temp))
+					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+				
 			}
 			else
 			{
@@ -301,19 +284,7 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 				SI->DataBuf.buf = c;
 				SI->DataBuf.len = strlen(c);
 
-				//sprintf(temp, "Sending: %s", SI->DataBuf.buf);
-				//infoVector.push_back(temp);
-
-				if (WSASend(SI->Socket, &(SI->DataBuf), 1, &SendBytes, 0,
-					&(SI->Overlapped), NULL) == SOCKET_ERROR)
-				{
-					if (WSAGetLastError() != ERROR_IO_PENDING)
-					{
-						sprintf(temp, "WSASend() failed with error %d\n", WSAGetLastError());
-						SetWindowText(hwnd, temp);
-						return 0;
-					}
-				}
+				BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
 			}
 			
 		}
@@ -334,7 +305,9 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 		SI->DataBuf.len = DATA_BUFSIZE;
 		SI->DataBuf.buf = SI->Buffer;
 
-		if (WSARecv(SI->Socket, &(SI->DataBuf), 1, &RecvBytes, &Flags,
+		RecvBytes = ReadSocket(&SI->Socket, &SI->DataBuf, Flags, &SI->Overlapped);
+
+		/*if (WSARecv(SI->Socket, &(SI->DataBuf), 1, &RecvBytes, &Flags,
 			&(SI->Overlapped), NULL) == SOCKET_ERROR)
 		{
 			if (WSAGetLastError() != ERROR_IO_PENDING)
@@ -345,8 +318,7 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 				return 0;
 			}
 			
-		}
-
+		}*/
 		PrintIOLog(infoVector, hwnd);
 	}
 	
@@ -372,9 +344,44 @@ void PrintIOLog(vector<string> v , HWND h)
 }
 
 
-void WriteToSocket()
+DWORD WriteToSocket(SOCKET sock, WSABUF buf, WSAOVERLAPPED ol)
 {
+	DWORD sb;
+	char temp[64];
 
+	if (WSASend(sock, &buf, 1, &sb, 0,
+		&ol, NULL) == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != ERROR_IO_PENDING)
+		{
+			sprintf(temp, "WSASend() failed with error %d", WSAGetLastError());
+			MessageBox(NULL, temp, "", MB_OK);
+			return 0;
+		}
+	}
+
+	return sb;
+}
+
+DWORD ReadSocket(SOCKET *sock, WSABUF *buf, DWORD fl,  WSAOVERLAPPED *ol)
+{
+	DWORD rb;
+	char temp[64];
+
+	if (WSARecv(*sock, buf, 1, &rb, &fl,
+			ol, NULL) == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != ERROR_IO_PENDING)
+		{
+
+			sprintf(temp, "WSASend() failed with error %d", WSAGetLastError());
+			MessageBox(NULL, temp, "", MB_OK);
+			return 0;
+		}
+			
+	}
+
+	return rb;
 }
 
 void StopServer()

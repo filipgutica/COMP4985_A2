@@ -28,6 +28,8 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter);
 DWORD WINAPI ListenThread(LPVOID lpParameter);
 void StartServer(HWND);
 void PrintIOLog(vector<string> v , HWND h);
+DWORD WriteToSocket(SOCKET sock, WSABUF buf, WSAOVERLAPPED overlapped);
+DWORD ReadSocket(SOCKET *sock, WSABUF *buf, DWORD fl,  WSAOVERLAPPED *ol);
 void StopServer();
 
 #endif
