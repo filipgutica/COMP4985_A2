@@ -11,6 +11,7 @@
 #define SERVER_TCP_PORT			7000	// Default port
 #define BUFSIZE					65535		// Buffer length
 #define ACK						06
+#define EOT						04
 
 #define WM_CONNECTED (WM_USER + 0x0001)
 #define WM_DISCONNECT (WM_USER + 0x002)

@@ -194,7 +194,7 @@ DWORD WINAPI ProcessClientIO(LPVOID lpParameter)
 			{
 				if (i == (ioInfo.numtimes - 1))
 				{
-					sprintf(sbuf, "FIN");
+					sprintf(sbuf, "%d", EOT);
 					ns = send(dataSock, sbuf, ioInfo.size, 0);
 				}
 				else

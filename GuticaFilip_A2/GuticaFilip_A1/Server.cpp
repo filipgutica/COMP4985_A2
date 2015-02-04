@@ -9,7 +9,6 @@ CRITICAL_SECTION CriticalSection;
 SOCKET ListenSocket, AcceptSocket, ControlSocket;
 HANDLE hThrdIO, hThrdListen;
 vector<string> infoVector;
-int TotalBytes;
 
 
 void StartServer(HWND h)
@@ -69,7 +68,7 @@ void StartServer(HWND h)
       return;
    }
 
-   // Create a thread to service overlapped requests
+   // Create a thread to service overlapped requests and I/O operations
 
    if ((hThrdIO = CreateThread(NULL, 0, ProcessIO, (LPVOID)h, 0, &IOThreadId)) == NULL)
    {
@@ -170,11 +169,10 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 	DWORD BytesTransferred;
 	DWORD i;
 	DWORD RecvBytes = 0;
-	DWORD BytesSent;
+	DWORD BytesSent = 0;
 	char temp[TEMP_BUFSIZE];
 	HWND hwnd = (HWND)lpParameter;
-	
-	BOOL lock = false;
+	int TotalBytes;
   
    // Process asynchronous WSASend, WSARecv requests.
 
@@ -208,7 +206,7 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 			sprintf(temp, "Closing socket %d", SI->Socket);
 			infoVector.push_back(temp);	
 			
-			//infoVector.clear();
+			infoVector.clear();
 			TotalBytes = 0;
 
 			if (closesocket(SI->Socket) == SOCKET_ERROR)
@@ -254,18 +252,12 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 			if (SI->Socket != ControlSocket)
 				TotalBytes += (SI->BytesRECV);
 
-			//sprintf(temp, "Received bytes: %d", BytesTransferred);
-			//infoVector.push_back(temp);
-			
-
 			// Post another WSASend() request.
-			// Since WSASend() is not gauranteed to send all of the bytes requested,
-			// continue posting WSASend() calls until all received bytes are sent.
 
 			ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
 			SI->Overlapped.hEvent = EventArray[Index - WSA_WAIT_EVENT_0];
 			
-			if (strcmp(SI->Buffer, "FIN") == 0)
+			if (atoi(SI->Buffer) == EOT)
 			{
 				sprintf(temp, "Total Received bytes: %d", TotalBytes);
 				infoVector.push_back(temp);
@@ -274,17 +266,24 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 				SI->DataBuf.buf = temp;
 				SI->DataBuf.len = strlen(temp);
 
-				while (BytesSent != strlen(temp))
+				//Keep writing till all bytes sent
+				
+				while(BytesSent != SI->DataBuf.len)
 					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+
+				BytesSent = 0;
 				
 			}
 			else
 			{
-				char *c = ACK;
-				SI->DataBuf.buf = c;
-				SI->DataBuf.len = strlen(c);
+				sprintf(temp, "%d", ACK);
+				SI->DataBuf.buf = temp;
+				SI->DataBuf.len = strlen(temp);
 
-				BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+				while(BytesSent != SI->DataBuf.len)
+					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+
+				BytesSent = 0;
 			}
 			
 		}
@@ -307,18 +306,6 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 
 		RecvBytes = ReadSocket(&SI->Socket, &SI->DataBuf, Flags, &SI->Overlapped);
 
-		/*if (WSARecv(SI->Socket, &(SI->DataBuf), 1, &RecvBytes, &Flags,
-			&(SI->Overlapped), NULL) == SOCKET_ERROR)
-		{
-			if (WSAGetLastError() != ERROR_IO_PENDING)
-			{
-
-				sprintf(temp, "WSARecv() failed with error %d\n", WSAGetLastError());
-				SetWindowText(hwnd, temp);
-				return 0;
-			}
-			
-		}*/
 		PrintIOLog(infoVector, hwnd);
 	}
 	

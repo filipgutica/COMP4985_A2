@@ -10,7 +10,8 @@
 #define DATA_BUFSIZE	65535	//Maximum size to receive on TCP one packet	
 #define BUFFER_SIZE		65535	// "" 
 #define TEMP_BUFSIZE	64
-#define ACK				"06"
+#define ACK				06
+#define EOT				04
 
 using namespace std;
 
