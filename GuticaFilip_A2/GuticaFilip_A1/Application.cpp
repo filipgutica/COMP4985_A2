@@ -297,7 +297,7 @@ void InstantiateUI()
 
 	labelIP = CreateLabel("IP Address ", 10, 10, labelWidth, labelHeight, hwnd); 
 
-	editCtlIP = CreateEditCtrl("localhost", editCtrl_X, 10, 140, 25, hwnd);
+	editCtlIP = CreateEditCtrl("127.0.0.1", editCtrl_X, 10, 140, 25, hwnd);
 
 	labelPort = CreateLabel("Port ", 10, 50, labelWidth, labelHeight, hwnd);
 

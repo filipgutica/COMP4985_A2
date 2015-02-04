@@ -22,10 +22,16 @@ typedef struct _SOCKET_INFORMATION {
    WSAOVERLAPPED Overlapped;
    DWORD BytesSEND;
    DWORD BytesRECV;
-} SOCKET_INFORMATION, * LPSOCKET_INFORMATION;
+} SOCKET_INFORMATION, *LPSOCKET_INFORMATION;
+
+typedef struct UDP_INFO {
+	int ip;
+	HWND hwnd;
+} UDP_INFO;
 
 //Functions
-DWORD WINAPI ProcessIO(LPVOID lpParameter);
+DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter);
+DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter);
 DWORD WINAPI ListenThread(LPVOID lpParameter);
 void StartServer(HWND);
 void PrintIOLog(vector<string> v , HWND h);

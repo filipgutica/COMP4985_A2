@@ -28,38 +28,29 @@
 #include "Client.h"
 
 IO_DATA ioInfo;
-
-char *host;
-int port;
+struct	hostent	*hp;
+struct	sockaddr_in server, client;
 
 void StartClient (char *ip, char *p, int size, int numTimes, char *protocol, HWND mainHwnd, HWND resultHwnd)
 {
-	
-
 	ioInfo.hWndResult = resultHwnd;
 	ioInfo.hWnd = mainHwnd;
 	ioInfo.size = size;
 	ioInfo.numtimes = numTimes;
 	ioInfo.protocol = protocol;
 		
-	host =	ip;
-	port =	atoi(p);	// User specified port
+	ioInfo.ip =	ip;
+	ioInfo.port = atoi(p);	// User specified port
 	
+	StartTCP();
 
-	if (strcmp(ioInfo.protocol, "tcp") == 0)
-		StartTCP();
-	//else if (strcmp(ioInfo.protocol, "udp") == 0)
-		//StartUDP();
-
-	
-	
 }
 
 void StartTCP()
 {
 	int err;
-	struct hostent	*hp;
-	struct sockaddr_in server;
+	struct hostent	*hInfo;
+	struct sockaddr_in serv;
 	char **pptr;
 	WSADATA WSAData;
 	WORD wVersionRequested;
@@ -75,43 +66,12 @@ void StartTCP()
 		exit(1);
 	}
 
-	// Create the socket
-	if ((ioInfo.sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-	{
-		perror("Cannot create socket");
-		exit(1);
-	}
-
-	// Initialize and set up the address structure
-	memset((char *)&server, 0, sizeof(struct sockaddr_in));
-	server.sin_family = AF_INET;
-	server.sin_port = htons(port);
-	if ((hp = gethostbyname(host)) == NULL)
-	{
-		fprintf(stderr, "Unknown server address\n");
-		exit(1);
-	}
-
-	// Copy the server address
-	memcpy((char *)&server.sin_addr, hp->h_addr, hp->h_length);
-
-	// Connecting to the server
-	if (connect (ioInfo.sock, (struct sockaddr *)&server, sizeof(server)) == -1)
-	{
-		sprintf(temp, "Can't connect to server\n");
-		SetWindowText(ioInfo.hWndResult, temp);
-		perror("connect");
-		
-	}
-
-
+	ioInfo.sock = CreateTCPSocket();
 
 	sprintf(temp, "Connected:    Server Name: %s\n \t\tIP Address: %s\n", hp->h_name, inet_ntoa(server.sin_addr));
 	SetWindowText(ioInfo.hWndResult, temp);
 	pptr = hp->h_addr_list;
-	printf("Transmiting:\n");
 	
-
 	if (CreateThread(NULL, 0, ProcessClientIO, (LPVOID)ioInfo.hWnd, 0, &ThreadId) == NULL)
 	{
 		printf("CreateThread failed with error %d\n", GetLastError());
@@ -121,16 +81,49 @@ void StartTCP()
 
 DWORD WINAPI ProcessClientIO(LPVOID lpParameter)
 {
-	char *rbuf = new char[64];
+	if (strcmp(ioInfo.protocol, "udp") == 0)
+	{
+		UDP();
+	}
+	else if (strcmp(ioInfo.protocol, "tcp") == 0)
+	{
+		TCP();
+	}
+
+	WSACleanup();
+	return 0;
+}
+
+
+void UDP()
+{
+	int	data_size = ioInfo.size;
+	int port = ioInfo.port;
+	int	i, j, server_len, client_len;
+	SOCKET DataSocket;
+	char *pname, *host, rbuf[BUFSIZ], sbuf[BUFSIZ];
+
+	SYSTEMTIME stStartTime, stEndTime;
+	WSADATA stWSAData;
+
+	sprintf(sbuf, "%s", ioInfo.ip);
+
+	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
+
+
+	DataSocket = CreateUDPSocket();
+
+}
+
+void TCP()
+{
+	char rbuf[64];
 	char sbuf[BUFSIZE] = "\0";
 	char *bp;
 	char temp[128];
-	HWND h = (HWND)lpParameter;
 	int ns = 0; 
 	int n, bytes_to_read;
 	int i = 0;
-	struct hostent	*hp;
-	struct sockaddr_in server;
 	SOCKET dataSock;
 
 	int totalSize = ioInfo.size * ioInfo.numtimes;
@@ -161,48 +154,23 @@ DWORD WINAPI ProcessClientIO(LPVOID lpParameter)
 			t = clock();
 			//MessageBox(NULL, "GOT ACK", "", MB_OK);
 			n = 0;
-			if ((dataSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-			{
-				perror("Cannot create socket");
-				//exit(1);
-			}
 
-			// Initialize and set up the address structure
-			memset((char *)&server, 0, sizeof(struct sockaddr_in));
-			server.sin_family = AF_INET;
-			server.sin_port = htons(port);
-			if ((hp = gethostbyname(host)) == NULL)
-			{
-				fprintf(stderr, "Unknown server address\n");
-				//exit(1);
-			}
-
-			// Copy the server address
-			memcpy((char *)&server.sin_addr, hp->h_addr, hp->h_length);
-
-			// Connecting to the server
-			if (connect (dataSock, (struct sockaddr *)&server, sizeof(server)) == -1)
-			{
-				fprintf(stderr, "Can't connect to server\n");
-				perror("connect");
-				SendMessage(h, WM_DISCONNECT, 0, 0);
-			}
-
-			
-			
+			dataSock = CreateTCPSocket();
+		
 			for (int i = 0; i < ioInfo.numtimes; i++)
 			{
 				if (i == (ioInfo.numtimes - 1))
 				{
 					sprintf(sbuf, "%d", EOT);
-					ns = send(dataSock, sbuf, ioInfo.size, 0);
+					n = send(dataSock, sbuf, ioInfo.size, 0);
 				}
 				else
 				{
 					sprintf(sbuf, "");
-					ns = send (dataSock, sbuf, ioInfo.size, 0);
+					n = send (dataSock, sbuf, ioInfo.size, 0);
 				}
-					n = recv(dataSock, bp, 1024, 0);
+				n = recv(dataSock, bp, 1024, 0);
+				SetWindowText(ioInfo.hWndResult, TEXT("Transmitting..."));
 			}
 
 			t = clock() - t;
@@ -212,18 +180,84 @@ DWORD WINAPI ProcessClientIO(LPVOID lpParameter)
 
 			break;
 		}
-			
-			
-			
-
-		
 	}
 
+	//Give the server a chance to finish sending then close sockets
 	Sleep(1000);
 	closesocket (ioInfo.sock);
 	closesocket(dataSock);
-	WSACleanup();
-	SendMessage(h, WM_DISCONNECT, 0, 0);
-	return 0;
+}
 
+SOCKET CreateTCPSocket()
+{
+	SOCKET temp;
+
+	if ((temp = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	{
+		perror("Cannot create socket");
+		//exit(1);
+	}
+
+	// Initialize and set up the address structure
+	memset((char *)&server, 0, sizeof(struct sockaddr_in));
+	server.sin_family = AF_INET;
+	server.sin_port = htons(ioInfo.port);
+	if ((hp = gethostbyname(ioInfo.ip)) == NULL)
+	{
+		fprintf(stderr, "Unknown server address\n");
+		//exit(1);
+	}
+
+	// Copy the server address
+	memcpy((char *)&server.sin_addr, hp->h_addr, hp->h_length);
+
+	// Connecting to the server
+	if (connect (temp, (struct sockaddr *)&server, sizeof(server)) == -1)
+	{
+		fprintf(stderr, "Can't connect to server\n");
+		perror("connect");
+	}
+	
+	return temp;
+			
+}
+
+SOCKET CreateUDPSocket()
+{
+	SOCKET temp;
+
+
+	// Create a datagram socket
+	if ((temp = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
+	{
+		perror ("Can't create a socket\n");
+		exit(1);
+	}
+
+	// Store server's information
+	memset((char *)&server, 0, sizeof(server));
+	server.sin_family = AF_INET;
+	server.sin_port = htons(ioInfo.port);
+
+	if ((hp = gethostbyname(ioInfo.ip)) == NULL)
+	{
+		fprintf(stderr,"Can't get server's IP address\n");
+		exit(1);
+	}
+	//strcpy((char *)&server.sin_addr, hp->h_addr);
+	memcpy((char *)&server.sin_addr, hp->h_addr, hp->h_length);
+
+	// Bind local address to the socket
+	memset((char *)&client, 0, sizeof(client));
+	client.sin_family = AF_INET;
+	client.sin_port = htons(0);  // bind to any available port
+	client.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	if (bind(temp, (struct sockaddr *)&client, sizeof(client)) == -1)
+	{
+		perror ("Can't bind name to socket");
+		exit(1);
+	}
+
+	return temp;
 }

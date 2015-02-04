@@ -13,78 +13,78 @@ vector<string> infoVector;
 
 void StartServer(HWND h)
 {
-   WSADATA wsaData;
-   SOCKADDR_IN InternetAddr;
-   DWORD Flags;
-   DWORD IOThreadId;
-   DWORD ListenThreadId;
-   DWORD RecvBytes;
-   INT Ret;
+	WSADATA wsaData;
+	SOCKADDR_IN InternetAddr;
+	DWORD Flags;
+	DWORD IOThreadId;
+	DWORD ListenThreadId;
+	DWORD RecvBytes;
+	INT Ret;
 
-   InitializeCriticalSection(&CriticalSection);
+	InitializeCriticalSection(&CriticalSection);
 
-   if ((Ret = WSAStartup(0x0202,&wsaData)) != 0)
-   {
-      printf("WSAStartup failed with error %d\n", Ret);
-      WSACleanup();
-      return;
-   }
+	if ((Ret = WSAStartup(0x0202,&wsaData)) != 0)
+	{
+		printf("WSAStartup failed with error %d\n", Ret);
+		WSACleanup();
+		return;
+	}
 
-   if ((ListenSocket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, 
-      WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET) 
-   {
-      printf("Failed to get a socket %d\n", WSAGetLastError());
-      return;
-   }
+	if ((ListenSocket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, 
+		WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET) 
+	{
+		printf("Failed to get a socket %d\n", WSAGetLastError());
+		return;
+	}
 
-   InternetAddr.sin_family = AF_INET;
-   InternetAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-   InternetAddr.sin_port = htons(PORT);
+	InternetAddr.sin_family = AF_INET;
+	InternetAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	InternetAddr.sin_port = htons(PORT);
 
-   if (bind(ListenSocket, (PSOCKADDR) &InternetAddr, sizeof(InternetAddr)) == SOCKET_ERROR)
-   {
-      printf("bind() failed with error %d\n", WSAGetLastError());
-      return;
-   }
+	if (bind(ListenSocket, (PSOCKADDR) &InternetAddr, sizeof(InternetAddr)) == SOCKET_ERROR)
+	{
+		printf("bind() failed with error %d\n", WSAGetLastError());
+		return;
+	}
 
-   if (listen(ListenSocket, 5))
-   {
-      printf("listen() failed with error %d\n", WSAGetLastError());
-      return;
-   }
+	if (listen(ListenSocket, 5))
+	{
+		printf("listen() failed with error %d\n", WSAGetLastError());
+		return;
+	}
 
-   // Setup the listening socket for connections.
+	// Setup the listening socket for connections.
 
-   if ((AcceptSocket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0,
-      WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET) 
-   {
-      printf("Failed to get a socket %d\n", WSAGetLastError());
-      return;
-   }
+	if ((AcceptSocket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0,
+		WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET) 
+	{
+		printf("Failed to get a socket %d\n", WSAGetLastError());
+		return;
+	}
 
-   if ((EventArray[0] = WSACreateEvent()) == WSA_INVALID_EVENT)
-   {
-      printf("WSACreateEvent failed with error %d\n", WSAGetLastError());
-      return;
-   }
+	if ((EventArray[0] = WSACreateEvent()) == WSA_INVALID_EVENT)
+	{
+		printf("WSACreateEvent failed with error %d\n", WSAGetLastError());
+		return;
+	}
 
-   // Create a thread to service overlapped requests and I/O operations
+	// Create a thread to service overlapped requests and I/O operations
 
-   if ((hThrdIO = CreateThread(NULL, 0, ProcessIO, (LPVOID)h, 0, &IOThreadId)) == NULL)
-   {
-      printf("CreateThread failed with error %d\n", GetLastError());
-      return;
-   } 
+	if ((hThrdIO = CreateThread(NULL, 0, ProcessTCP_IO, (LPVOID)h, 0, &IOThreadId)) == NULL)
+	{
+		printf("CreateThread failed with error %d\n", GetLastError());
+		return;
+	} 
 
-   //Create a thread to Listen for incomming connections
+	//Create a thread to Listen for incomming connections
 
-    if ((hThrdListen = CreateThread(NULL, 0, ListenThread, (LPVOID)h, 0, &ListenThreadId)) == NULL)
-   {
-      printf("CreateThread failed with error %d\n", GetLastError());
-      return;
-   } 
+	if ((hThrdListen = CreateThread(NULL, 0, ListenThread, (LPVOID)h, 0, &ListenThreadId)) == NULL)
+	{
+		printf("CreateThread failed with error %d\n", GetLastError());
+		return;
+	} 
 
-   EventTotal = 1;
+	EventTotal = 1;
 }
 
 
@@ -161,7 +161,161 @@ DWORD WINAPI ListenThread(LPVOID lpParameter)
 }
 
 
-DWORD WINAPI ProcessIO(LPVOID lpParameter)
+DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
+{
+	DWORD Index;
+	DWORD Flags;
+	LPSOCKET_INFORMATION SI;
+	DWORD BytesTransferred;
+	DWORD i;
+	DWORD RecvBytes = 0;
+	DWORD BytesSent = 0;
+	char temp[TEMP_BUFSIZE];
+	HWND hwnd = (HWND)lpParameter;
+	int TotalBytes;
+	UDP_INFO udpInfo;
+	udpInfo.hwnd = hwnd;
+	
+  
+   // Process asynchronous WSASend, WSARecv requests.
+
+	while(TRUE)
+	{
+
+		if ((Index = WSAWaitForMultipleEvents(EventTotal, EventArray, FALSE,
+			WSA_INFINITE, FALSE)) == WSA_WAIT_FAILED)
+		{
+			printf("WSAWaitForMultipleEvents failed %d\n", WSAGetLastError());
+			return 0;
+		} 
+
+		// If the event triggered was zero then a connection attempt was made
+		// on our listening socket.
+ 
+		if ((Index - WSA_WAIT_EVENT_0) == 0)
+		{
+			WSAResetEvent(EventArray[0]);
+			continue;
+		}
+
+		SI = SocketArray[Index - WSA_WAIT_EVENT_0];
+		ControlSocket = SocketArray[1]->Socket;
+	
+		WSAResetEvent(EventArray[Index - WSA_WAIT_EVENT_0]);
+		
+		if (WSAGetOverlappedResult(SI->Socket, &(SI->Overlapped), &BytesTransferred,
+			FALSE, &Flags) == FALSE || BytesTransferred == 0)
+		{
+			sprintf(temp, "Closing socket %d", SI->Socket);
+			infoVector.push_back(temp);	
+			
+			infoVector.clear();
+			TotalBytes = 0;
+
+			if (closesocket(SI->Socket) == SOCKET_ERROR)
+			{
+				printf("closesocket() failed with error %d\n", WSAGetLastError());
+			}
+
+			GlobalFree(SI);
+			WSACloseEvent(EventArray[Index - WSA_WAIT_EVENT_0]);
+
+			// Cleanup SocketArray and EventArray by removing the socket event handle
+			// and socket information structure if they are not at the end of the
+			// arrays.
+
+			EnterCriticalSection(&CriticalSection);
+
+			if ((Index - WSA_WAIT_EVENT_0) + 1 != EventTotal)
+				for (i = Index - WSA_WAIT_EVENT_0; i < EventTotal; i++)
+				{
+					EventArray[i] = EventArray[i + 1];
+					SocketArray[i] = SocketArray[i + 1];
+				}
+
+			EventTotal--;
+
+			LeaveCriticalSection(&CriticalSection);
+
+			continue;
+		}
+
+		// Check to see if the BytesRECV field equals zero. If this is so, then
+		// this means a WSARecv call just completed so update the BytesRECV field
+		// with the BytesTransferred value from the completed WSARecv() call.
+		if (SI->BytesRECV == 0)
+		{
+			SI->BytesRECV = BytesTransferred;
+	
+			SI->BytesSEND = 0;
+
+			//Don't count bytes sent on the control channel
+			if (SI->Socket != ControlSocket)
+				TotalBytes += (SI->BytesRECV);
+
+			// Check for control characters
+			ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
+			SI->Overlapped.hEvent = EventArray[Index - WSA_WAIT_EVENT_0];
+			
+			if (atoi(SI->Buffer) == EOT)
+			{
+				sprintf(temp, "Total Received bytes: %d", TotalBytes);
+				infoVector.push_back(temp);
+
+				sprintf(temp, "%d", TotalBytes);
+				SI->DataBuf.buf = temp;
+				SI->DataBuf.len = strlen(temp);
+
+				//Keep writing till all bytes sent
+				
+				while(BytesSent != SI->DataBuf.len)
+					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+
+				BytesSent = 0;
+				
+			}
+			else if(udpInfo.ip = inet_addr(SI->Buffer) != INADDR_NONE && strstr(SI->Buffer, ".") != NULL)
+			{
+				MessageBox(NULL, "got IP", "", MB_OK);
+			}
+			else
+			{
+				sprintf(temp, "%d", ACK);
+				SI->DataBuf.buf = temp;
+				SI->DataBuf.len = strlen(temp);
+
+				while(BytesSent != SI->DataBuf.len)
+					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+
+				BytesSent = 0;
+			}
+			
+		}
+		else
+		{
+			
+			SI->BytesSEND += BytesTransferred;
+		}
+
+		SI->BytesRECV = 0;
+
+		// Now that there are no more bytes to send post another WSARecv() request.
+
+		Flags = 0;
+		ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
+		SI->Overlapped.hEvent = EventArray[Index - WSA_WAIT_EVENT_0];
+
+		SI->DataBuf.len = DATA_BUFSIZE;
+		SI->DataBuf.buf = SI->Buffer;
+
+		RecvBytes = ReadSocket(&SI->Socket, &SI->DataBuf, Flags, &SI->Overlapped);
+
+		PrintIOLog(infoVector, hwnd);
+	}
+	
+}
+
+DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 {
 	DWORD Index;
 	DWORD Flags;
@@ -240,8 +394,6 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 		// Check to see if the BytesRECV field equals zero. If this is so, then
 		// this means a WSARecv call just completed so update the BytesRECV field
 		// with the BytesTransferred value from the completed WSARecv() call.
-
-		
 		if (SI->BytesRECV == 0)
 		{
 			SI->BytesRECV = BytesTransferred;
@@ -252,8 +404,7 @@ DWORD WINAPI ProcessIO(LPVOID lpParameter)
 			if (SI->Socket != ControlSocket)
 				TotalBytes += (SI->BytesRECV);
 
-			// Post another WSASend() request.
-
+			// Check for control characters
 			ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
 			SI->Overlapped.hEvent = EventArray[Index - WSA_WAIT_EVENT_0];
 			
@@ -381,3 +532,4 @@ void StopServer()
 	TerminateThread(hThrdListen, 0);
 	TerminateThread(hThrdIO, 0);
 }
+
