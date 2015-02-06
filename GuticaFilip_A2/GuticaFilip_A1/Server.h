@@ -7,11 +7,14 @@
 #include <vector>
 
 #define PORT			7000
+#define UDP_PORT		7001
 #define DATA_BUFSIZE	65535	//Maximum size to receive on TCP one packet	
 #define BUFFER_SIZE		65535	// "" 
 #define TEMP_BUFSIZE	64
 #define ACK				06
 #define EOT				04
+#define UDP_MODE		1
+#define TCP_MODE		0
 
 using namespace std;
 

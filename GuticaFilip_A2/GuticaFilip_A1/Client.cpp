@@ -100,25 +100,68 @@ void UDP()
 	int	data_size = ioInfo.size;
 	int port = ioInfo.port;
 	int	i, j, server_len, client_len;
+	int n, bytes_to_read;
 	SOCKET DataSocket;
-	char *pname, *host, rbuf[BUFSIZ], sbuf[BUFSIZ];
-
+	char *pname, *host, rbuf[BUFSIZ], sbuf[BUFSIZ], usbuf[BUFSIZ];
+	char *bp;
+	char temp[128];
 	SYSTEMTIME stStartTime, stEndTime;
 	WSADATA stWSAData;
+	int totalSize = ioInfo.size * ioInfo.numtimes;
 
-	sprintf(sbuf, "%s", ioInfo.ip);
+	sprintf(sbuf, "%s", "udp");
 
 	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
 
-
 	DataSocket = CreateUDPSocket();
+	clock_t t;
 
+	while (TRUE)
+	{
+		memset((char *)sbuf, 0, sizeof(sbuf));
+		memset((char *)rbuf, 0, sizeof(rbuf));
+
+		bp = rbuf;
+		n = recv (ioInfo.sock, bp, 1024, 0);
+		
+		if (atoi(rbuf) == ACK)
+		{
+			
+
+			t = clock();
+			server_len = sizeof(server);
+			for (int i = 0; i < ioInfo.numtimes; i++)
+			{
+		
+				sprintf(usbuf, "%s", "hello");
+				
+				sendto (DataSocket, usbuf, ioInfo.size, 0, (struct sockaddr *)&server, server_len);
+				
+			}
+			
+			break;
+		}
+	}
+	t = clock() - t;
+
+	sprintf(sbuf, "%d", EOT);
+	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
+
+
+	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec", totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC));
+	SetWindowText(ioInfo.hWndResult, temp);
+
+	Sleep(1000);
+	closesocket(ioInfo.sock);
+	closesocket(DataSocket);
 }
 
 void TCP()
 {
-	char rbuf[64];
+	char rbuf[BUFSIZE];
 	char sbuf[BUFSIZE] = "\0";
+	char dataBuff[BUFSIZE];
+	char *dataBP;
 	char *bp;
 	char temp[128];
 	int ns = 0; 
@@ -136,7 +179,7 @@ void TCP()
 	while (TRUE)
 	{
 		memset((char *)sbuf, 0, sizeof(sbuf));
-
+		memset((char *)rbuf, 0, sizeof(rbuf));
 		// Transmit data through the socket
 		
 		bp = rbuf;
@@ -162,20 +205,30 @@ void TCP()
 				if (i == (ioInfo.numtimes - 1))
 				{
 					sprintf(sbuf, "%d", EOT);
-					n = send(dataSock, sbuf, ioInfo.size, 0);
 				}
 				else
 				{
-					sprintf(sbuf, "");
-					n = send (dataSock, sbuf, ioInfo.size, 0);
+					//sprintf(sbuf, "");
+					std::string s('c', ioInfo.size);
+					sprintf(sbuf, s.c_str());
 				}
-				n = recv(dataSock, bp, 1024, 0);
+
+				if (ioInfo.size > 60000)
+					Sleep(1);
+
+				n = send (dataSock, sbuf, ioInfo.size, 0);
+				
+				
 				SetWindowText(ioInfo.hWndResult, TEXT("Transmitting..."));
 			}
+			
+			dataBP = dataBuff;
+			n = recv(dataSock, dataBP, 8, 0);
 
 			t = clock() - t;
 			
-			sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec", totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC));
+			//if(atoi(rbuf) != 6)
+			sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec", totalSize, atoi(dataBuff), ((float)t/CLOCKS_PER_SEC));
 			SetWindowText(ioInfo.hWndResult, temp);
 
 			break;
@@ -202,6 +255,7 @@ SOCKET CreateTCPSocket()
 	memset((char *)&server, 0, sizeof(struct sockaddr_in));
 	server.sin_family = AF_INET;
 	server.sin_port = htons(ioInfo.port);
+
 	if ((hp = gethostbyname(ioInfo.ip)) == NULL)
 	{
 		fprintf(stderr, "Unknown server address\n");
@@ -226,36 +280,10 @@ SOCKET CreateUDPSocket()
 {
 	SOCKET temp;
 
-
 	// Create a datagram socket
 	if ((temp = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
 	{
 		perror ("Can't create a socket\n");
-		exit(1);
-	}
-
-	// Store server's information
-	memset((char *)&server, 0, sizeof(server));
-	server.sin_family = AF_INET;
-	server.sin_port = htons(ioInfo.port);
-
-	if ((hp = gethostbyname(ioInfo.ip)) == NULL)
-	{
-		fprintf(stderr,"Can't get server's IP address\n");
-		exit(1);
-	}
-	//strcpy((char *)&server.sin_addr, hp->h_addr);
-	memcpy((char *)&server.sin_addr, hp->h_addr, hp->h_length);
-
-	// Bind local address to the socket
-	memset((char *)&client, 0, sizeof(client));
-	client.sin_family = AF_INET;
-	client.sin_port = htons(0);  // bind to any available port
-	client.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	if (bind(temp, (struct sockaddr *)&client, sizeof(client)) == -1)
-	{
-		perror ("Can't bind name to socket");
 		exit(1);
 	}
 

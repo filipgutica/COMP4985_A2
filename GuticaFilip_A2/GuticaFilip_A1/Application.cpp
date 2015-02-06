@@ -111,7 +111,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message,
 	
 	switch (Message)
 	{
-	
 		case WM_CREATE:
 			hdc = GetDC(hwnd);
 			
@@ -121,16 +120,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message,
 			CheckMenu(wParam);
 
 			break;
-
-		case WM_DESTROY:
-	
-			PostQuitMessage(0);
-			break;
 		case WM_CONNECTED:
 			isConnected = TRUE;
 			break;
 		case WM_DISCONNECT:
 			isConnected = FALSE;
+			break;
+		case WM_DESTROY:
+			StopServer();
+			PostQuitMessage(0);
 			break;
 		default:
 			return DefWindowProc(hwnd, Message, wParam, lParam);

@@ -5,10 +5,13 @@
 #include <winsock2.h>
 #include <errno.h>
 #include <time.h>
+#include <string>
+#include <string.h>
 //#include <string.h>
 //#include <memory.h>
 
-#define SERVER_TCP_PORT		7000	// Default port
+#define PORT				7000	// Default port
+#define UDP_PORT			7001
 #define BUFSIZE				65535		// Buffer length
 #define ACK					06
 #define EOT					04
