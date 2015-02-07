@@ -31,19 +31,19 @@ IO_DATA ioInfo;
 struct	hostent	*hp;
 struct	sockaddr_in server, client;
 
-void StartClient (char *ip, char *p, int size, int numTimes, char *protocol, HWND mainHwnd, HWND resultHwnd)
+void StartClient (char *ip, char *p, int size, int numTimes, char *protocol, char *delay, HWND mainHwnd, HWND resultHwnd)
 {
 	ioInfo.hWndResult = resultHwnd;
 	ioInfo.hWnd = mainHwnd;
 	ioInfo.size = size;
 	ioInfo.numtimes = numTimes;
 	ioInfo.protocol = protocol;
-		
 	ioInfo.ip =	ip;
 	ioInfo.port = atoi(p);	// User specified port
+	ioInfo.delay = atoi(delay);
 	
+	//Start TCP as we will always have a TCP control channel
 	StartTCP();
-
 }
 
 void StartTCP()
@@ -100,13 +100,15 @@ void UDP()
 	int	data_size = ioInfo.size;
 	int port = ioInfo.port;
 	int	i, j, server_len, client_len;
-	int n, bytes_to_read;
+	int n = 0; 
+	int bytes_to_read;
 	SOCKET DataSocket;
 	char *pname, *host, rbuf[BUFSIZ], sbuf[BUFSIZ], usbuf[BUFSIZ];
 	char *bp;
-	char temp[BUFSIZ];
+	char temp[TEMP_BUFSIZE];
 	SYSTEMTIME stStartTime, stEndTime;
 	WSADATA stWSAData;
+	float timeNoDelay;
 	int totalSize = ioInfo.size * ioInfo.numtimes;
 	clock_t t;
 
@@ -114,15 +116,17 @@ void UDP()
 	sprintf(sbuf, "%s", "udp");
 	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
 
-	
 	while (TRUE)
 	{
 		memset((char *)sbuf, 0, sizeof(sbuf));
 		memset((char *)rbuf, 0, sizeof(rbuf));
 
 		bp = rbuf;
+		
 		n = recv (ioInfo.sock, bp, 1024, 0);
 		
+		n = 0;
+
 		if (atoi(rbuf) == ACK)
 		{
 			DataSocket = CreateUDPSocket();
@@ -134,7 +138,7 @@ void UDP()
 		
 				sprintf(usbuf, "%s", "hello");
 				
-				Sleep(1);
+				Sleep(ioInfo.delay);
 				sendto (DataSocket, usbuf, ioInfo.size, 0, (struct sockaddr *)&server, server_len);
 				
 			}
@@ -145,11 +149,15 @@ void UDP()
 	t = clock() - t;
 
 	sprintf(sbuf, "%d", EOT);
+	Sleep(10);
 	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
 
-	n = recv (ioInfo.sock, bp, 1024, 0);
+	while (n = recv (ioInfo.sock, bp, 1024, 0) < 4);
 
-	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec", totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC));
+	n = 0;
+	timeNoDelay = ((float)t/CLOCKS_PER_SEC) - ((ioInfo.delay * ioInfo.numtimes)/CLOCKS_PER_SEC);
+	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec \ttime(minus delay): %f",
+		totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC), timeNoDelay);
 	SetWindowText(ioInfo.hWndResult, temp);
 
 	Sleep(1000);
@@ -164,11 +172,13 @@ void TCP()
 	char dataBuff[BUFSIZE];
 	char *dataBP;
 	char *bp;
-	char temp[128];
+	char temp[TEMP_BUFSIZE];
 	int ns = 0; 
 	int n, bytes_to_read;
 	int i = 0;
+	float timeNoDelay;
 	SOCKET dataSock;
+	clock_t t;
 
 	int totalSize = ioInfo.size * ioInfo.numtimes;
 	sprintf(sbuf, "%s", ioInfo.protocol);
@@ -185,18 +195,13 @@ void TCP()
 		
 		bp = rbuf;
 		bytes_to_read = BUFSIZE;
-
-		// client makes repeated calls to recv until no more data is expected to arrive.
 	
 		n = recv (ioInfo.sock, bp, 1024, 0);
 	
 		if (atoi(rbuf) == ACK)
 		{
-			char receiveBuf[64];
-			clock_t t;
-
 			t = clock();
-			//MessageBox(NULL, "GOT ACK", "", MB_OK);
+			
 			n = 0;
 
 			dataSock = CreateTCPSocket();
@@ -206,32 +211,44 @@ void TCP()
 				if (i == (ioInfo.numtimes - 1))
 				{
 					sprintf(sbuf, "%d", EOT);
+					Sleep(ioInfo.delay);
+					n = send (dataSock, sbuf, ioInfo.size, 0);
 				}
 				else
 				{
 					//sprintf(sbuf, "");
 					std::string s('c', ioInfo.size);
 					sprintf(sbuf, s.c_str());
+					Sleep(ioInfo.delay);
+					n = send (dataSock, sbuf, ioInfo.size, 0);
 				}
-
-				Sleep(1);
-				n = send (dataSock, sbuf, ioInfo.size, 0);
 				
 				SetWindowText(ioInfo.hWndResult, TEXT("Transmitting..."));
 			}
-			
-			dataBP = dataBuff;
-			n = recv(dataSock, dataBP, 8, 0);
 
 			t = clock() - t;
-			
-			//if(atoi(rbuf) != 6)
-			sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec", totalSize, atoi(dataBuff), ((float)t/CLOCKS_PER_SEC));
-			SetWindowText(ioInfo.hWndResult, temp);
 
 			break;
 		}
 	}
+
+	sprintf(sbuf, "%d", EOT);
+	n = send (dataSock, sbuf, strlen(sbuf), 0);
+
+	n = 0;
+
+	dataBP = dataBuff;
+	while (n = recv(dataSock, dataBP, 1024, 0) < 4)
+	{
+		if (n == 0)
+			break;
+	}	
+			
+	//if(atoi(rbuf) != 6)
+	timeNoDelay = ((float)t/CLOCKS_PER_SEC) - ((ioInfo.delay * ioInfo.numtimes)/CLOCKS_PER_SEC);
+	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec \ttime(minus delay): %f",
+		totalSize, atoi(dataBuff), ((float)t/CLOCKS_PER_SEC), timeNoDelay);
+	SetWindowText(ioInfo.hWndResult, temp);
 
 	//Give the server a chance to finish sending then close sockets
 	Sleep(1000);

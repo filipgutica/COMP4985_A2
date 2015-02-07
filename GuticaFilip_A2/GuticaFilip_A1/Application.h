@@ -41,9 +41,10 @@ HWND radioTCP;
 HWND radioUDP;
 HWND dropDown1;
 HWND labelSize;
-HWND labaelNumTimes;
+HWND labelNumTimes;
 HWND dropDown2;
-
+HWND dropDownDelay;
+HWND labelDelay;
 //Device Context
 HDC hdc;
 

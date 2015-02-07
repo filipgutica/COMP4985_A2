@@ -13,6 +13,7 @@
 #define PORT				7000	// Default port
 #define UDP_PORT			7001
 #define BUFSIZE				65535		// Buffer length
+#define TEMP_BUFSIZE		256
 #define ACK					06
 #define EOT					04
 
@@ -27,11 +28,12 @@ typedef struct IO_DATA
 	int size;
 	int numtimes;
 	int port;
+	int delay;
 	char* ip;
 	char* protocol;
 };
 
-void StartClient (char *ip, char *p,int, int, char*, HWND mainHwnd, HWND resultHwnd);
+void StartClient (char *ip, char *p,int, int, char*, char*, HWND mainHwnd, HWND resultHwnd);
 void StartTCP();
 void TCP();
 void UDP();

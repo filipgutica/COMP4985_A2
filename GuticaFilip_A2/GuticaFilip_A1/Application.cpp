@@ -293,47 +293,51 @@ void InstantiateUI()
 {
 	RECT clientArea;
 
-	int labelWidth = 95;
-	int labelHeight = 20;
+	int labelWidth =	95;
+	int labelHeight =	20;
 
-	int comboHeight = 100;
+	int comboHeight =	100;
 
-	int btnWidth = 120;
-	int btnHeight = 40;
+	int btnWidth =		120;
+	int btnHeight =		40;
 
-	int editCtrl_X = 110;
+	int editCtrl_X =	110;
 
-	int radio_X = 260;
+	int radio_X =		260;
 	
 	GetClientRect(hwnd, &clientArea);
-	clientWidth = clientArea.right - clientArea.left;
-	clientHeight = clientArea.bottom - clientArea.top;
+	clientWidth =	clientArea.right - clientArea.left;
+	clientHeight =	clientArea.bottom - clientArea.top;
 
-	result = CreateTextBox(clientWidth/10, clientHeight * 3/5, 
-		clientWidth * 4/5, clientHeight / 3, hwnd);
+	result =		CreateTextBox(clientWidth/10, clientHeight * 3/5, 
+						clientWidth * 4/5, clientHeight / 3, hwnd);
 
-	labelIP = CreateLabel("IP Address ", 10, 10, labelWidth, labelHeight, hwnd); 
+	labelIP =		CreateLabel("IP Address ", 10, 10, labelWidth, labelHeight, hwnd); 
 
-	editCtlIP = CreateEditCtrl("127.0.0.1", editCtrl_X, 10, 140, 25, hwnd);
+	editCtlIP =		CreateEditCtrl("127.0.0.1", editCtrl_X, 10, 140, 25, hwnd);
 
-	labelPort = CreateLabel("Port ", 10, 50, labelWidth, labelHeight, hwnd);
+	labelPort =		CreateLabel("Port ", 10, 50, labelWidth, labelHeight, hwnd);
 
-	editCtlPort = CreateEditCtrl("7000", editCtrl_X, 50, 140, 25, hwnd);
+	editCtlPort =	CreateEditCtrl("7000", editCtrl_X, 50, 140, 25, hwnd);
 
-	radioTCP = CreateRadioBtn("TCP ", radio_X, 10, 75, 25,(HMENU) IDM_TCP, hwnd);
+	radioTCP =		CreateRadioBtn("TCP ", radio_X, 10, 75, 25,(HMENU) IDM_TCP, hwnd);
 
-	radioUDP = CreateRadioBtn("UDP ", radio_X, 50, 75, 25, (HMENU) IDM_UDP, hwnd);
+	radioUDP =		CreateRadioBtn("UDP ", radio_X, 50, 75, 25, (HMENU) IDM_UDP, hwnd);
 
-	labelSize = CreateLabel("Size (Bytes) ", 10, 90, labelWidth, labelHeight, hwnd);
+	labelSize =		CreateLabel("Size (Bytes) ", 10, 90, labelWidth, labelHeight, hwnd);
 
-	labaelNumTimes = CreateLabel("Times to send", 10, 130, labelWidth, labelHeight, hwnd); 
+	labelNumTimes = CreateLabel("Times to send", 10, 130, labelWidth, labelHeight, hwnd); 
 
-	dropDown1 = CreateDropeDownList(editCtrl_X, 90, 140, comboHeight, hwnd);
+	labelDelay =	CreateLabel("Delay(ms)", 10, 170, labelWidth, labelHeight, hwnd);
 
-	dropDown2 = CreateDropeDownList(editCtrl_X, 130, 140, comboHeight, hwnd);
+	dropDown1 =		CreateDropeDownList(editCtrl_X, 90, 140, comboHeight, hwnd);
 
-	btn = CreateBtn("Send ", 40, 180,
-		btnWidth, btnHeight, (HMENU) IDM_BTN, hwnd);
+	dropDown2 =		CreateDropeDownList(editCtrl_X, 130, 140, comboHeight, hwnd);
+
+	dropDownDelay = CreateDropeDownList(editCtrl_X, 170, 140, comboHeight, hwnd);
+
+	btn =			CreateBtn("Send ", 40, 200,
+						btnWidth, btnHeight, (HMENU) IDM_BTN, hwnd);
 
 
 
@@ -359,6 +363,7 @@ void Resolve(int m)
 	char strSize[BUFFER_SIZE];
 	char strNumTimes[BUFFER_SIZE];
 	char protocol[BUFFER_SIZE];
+	char strDelay[BUFFER_SIZE];
 
 	switch(m)
 	{
@@ -371,16 +376,21 @@ void Resolve(int m)
 		GetWindowText(editCtlPort, strPort, sizeof(strPort));
 		GetWindowText(dropDown1,strSize, sizeof(strSize));
 		GetWindowText(dropDown2, strNumTimes, sizeof(strNumTimes));
+		GetWindowText(dropDownDelay, strDelay, sizeof(strDelay));
 		if (IsDlgButtonChecked(hwnd, IDM_TCP))
+		{
 			sprintf(protocol, "tcp");
+		}
 		else if (IsDlgButtonChecked(hwnd, IDM_UDP))
+		{
 			sprintf(protocol, "udp");	
+		}
 
 		int size = atoi(strSize);
 		int times = atoi(strNumTimes);
 
 	
-		StartClient(strIP, strPort, size, times, protocol, hwnd, result);
+		StartClient(strIP, strPort, size, times, protocol, strDelay, hwnd, result);
 		
 		
 		break;
@@ -418,10 +428,11 @@ void CommandUIstate()
 	ShowWindow(radioTCP, FALSE);
 	ShowWindow(radioUDP, FALSE);
 	ShowWindow(labelSize, FALSE);
-	ShowWindow(labaelNumTimes, FALSE);
+	ShowWindow(labelNumTimes, FALSE);
 	ShowWindow(dropDown1, FALSE);
 	ShowWindow(dropDown2, FALSE);
-
+	ShowWindow(labelDelay, FALSE);
+	ShowWindow(dropDownDelay, FALSE);
 }
 
 void ServerUIstate()
@@ -437,10 +448,11 @@ void ServerUIstate()
 	ShowWindow(radioTCP, FALSE);
 	ShowWindow(radioUDP, FALSE);
 	ShowWindow(labelSize, FALSE);
-	ShowWindow(labaelNumTimes, FALSE);
+	ShowWindow(labelNumTimes, FALSE);
 	ShowWindow(dropDown1, FALSE);
 	ShowWindow(dropDown2, FALSE);
-	
+	ShowWindow(labelDelay, FALSE);
+	ShowWindow(dropDownDelay, FALSE);
 }
 
 void ClientUIstate()
@@ -456,9 +468,11 @@ void ClientUIstate()
 	ShowWindow(radioTCP, TRUE);
 	ShowWindow(radioUDP, TRUE);
 	ShowWindow(labelSize, TRUE);
-	ShowWindow(labaelNumTimes, TRUE);
+	ShowWindow(labelNumTimes, TRUE);
 	ShowWindow(dropDown1, TRUE);
 	ShowWindow(dropDown2, TRUE);
+	ShowWindow(labelDelay, TRUE);
+	ShowWindow(dropDownDelay, TRUE);
 }
 
 
@@ -480,6 +494,12 @@ void PopulateUIElements()
 	SendMessage(dropDown2,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("100"));
 	SendMessage(dropDown2,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("1000"));
 
+	SendMessage(dropDownDelay,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("0"));
+	SendMessage(dropDownDelay,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("1"));
+	SendMessage(dropDownDelay,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("10"));
+	SendMessage(dropDownDelay,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("100"));
+
 	SendMessage(dropDown1, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 	SendMessage(dropDown2, CB_SETCURSEL, (WPARAM)1, (LPARAM)0);
+	SendMessage(dropDownDelay, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 }
