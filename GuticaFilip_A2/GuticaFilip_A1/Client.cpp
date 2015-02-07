@@ -104,18 +104,17 @@ void UDP()
 	SOCKET DataSocket;
 	char *pname, *host, rbuf[BUFSIZ], sbuf[BUFSIZ], usbuf[BUFSIZ];
 	char *bp;
-	char temp[128];
+	char temp[BUFSIZ];
 	SYSTEMTIME stStartTime, stEndTime;
 	WSADATA stWSAData;
 	int totalSize = ioInfo.size * ioInfo.numtimes;
-
-	sprintf(sbuf, "%s", "udp");
-
-	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
-
-	DataSocket = CreateUDPSocket();
 	clock_t t;
 
+
+	sprintf(sbuf, "%s", "udp");
+	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
+
+	
 	while (TRUE)
 	{
 		memset((char *)sbuf, 0, sizeof(sbuf));
@@ -126,7 +125,7 @@ void UDP()
 		
 		if (atoi(rbuf) == ACK)
 		{
-			
+			DataSocket = CreateUDPSocket();
 
 			t = clock();
 			server_len = sizeof(server);
@@ -135,6 +134,7 @@ void UDP()
 		
 				sprintf(usbuf, "%s", "hello");
 				
+				Sleep(1);
 				sendto (DataSocket, usbuf, ioInfo.size, 0, (struct sockaddr *)&server, server_len);
 				
 			}
@@ -147,6 +147,7 @@ void UDP()
 	sprintf(sbuf, "%d", EOT);
 	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
 
+	n = recv (ioInfo.sock, bp, 1024, 0);
 
 	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec", totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC));
 	SetWindowText(ioInfo.hWndResult, temp);
@@ -170,7 +171,7 @@ void TCP()
 	SOCKET dataSock;
 
 	int totalSize = ioInfo.size * ioInfo.numtimes;
-	sprintf(sbuf, "%d", totalSize);
+	sprintf(sbuf, "%s", ioInfo.protocol);
 
 	ns = send (ioInfo.sock, sbuf, strlen(sbuf), 0);
 
@@ -213,11 +214,8 @@ void TCP()
 					sprintf(sbuf, s.c_str());
 				}
 
-				if (ioInfo.size > 60000)
-					Sleep(1);
-
+				Sleep(1);
 				n = send (dataSock, sbuf, ioInfo.size, 0);
-				
 				
 				SetWindowText(ioInfo.hWndResult, TEXT("Transmitting..."));
 			}

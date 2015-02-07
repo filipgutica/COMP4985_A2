@@ -10,7 +10,8 @@ SOCKET ListenSocket, AcceptSocket, ControlSocket, UDPSock;
 HANDLE hThrdIO, hThrdListen, hThrdUDP;
 vector<string> infoVector;
 INT Mode;
-int TotalBytes;
+INT TotalTCPBytes;
+INT TotalUDPBytes;
 
 void StartServer(HWND h)
 {
@@ -47,6 +48,10 @@ void StartServer(HWND h)
 		PrintIOLog(infoVector, h);
 		return;
 	}
+
+	sprintf(temp, "%d", DATA_BUFSIZE);
+	if (setsockopt(UDPSock, SOL_SOCKET, SO_RCVBUF, temp, 5))
+		MessageBox(NULL, "Couldn't change UDP recieve buffer size!", "Error", MB_OK);
 
 	InternetAddr.sin_family = AF_INET;
 	InternetAddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -229,10 +234,9 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 			sprintf(temp, "Closing socket %d", SI->Socket);
 			infoVector.push_back(temp);	
 			PrintIOLog(infoVector, hwnd);
-			infoVector.clear();
-			TotalBytes = 0;
+			
+			TotalTCPBytes = 0;
 
-			closesocket(UDPSock);
 			TerminateThread(hThrdUDP, 0);
 
 			if (closesocket(SI->Socket) == SOCKET_ERROR)
@@ -274,7 +278,7 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 
 			//Don't count bytes sent on the control channel
 			if (SI->Socket != ControlSocket)
-				TotalBytes += (SI->BytesRECV);
+				TotalTCPBytes += SI->BytesRECV;
 	
 			ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
 			SI->Overlapped.hEvent = EventArray[Index - WSA_WAIT_EVENT_0];
@@ -282,29 +286,40 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 				// Check for control characters
 			if (atoi(SI->Buffer) == EOT)
 			{
-				sprintf(temp, "Total Received bytes: %d", TotalBytes);
+				sprintf(temp, "Total Received TCP bytes: %d", TotalTCPBytes);
 				infoVector.push_back(temp);
 
-				sprintf(temp, "%d", TotalBytes);
-				SI->DataBuf.buf = temp;
-				SI->DataBuf.len = strlen(temp);
+				sprintf(temp, "Total Received UDP bytes: %d", TotalUDPBytes);
+				infoVector.push_back(temp);
+
+				if (Mode == TCP_MODE)
+				{
+					sprintf(temp, "%d", TotalTCPBytes);
+					SI->DataBuf.buf = temp;
+					SI->DataBuf.len = strlen(temp);
+				}
+				else
+				{
+					sprintf(temp, "%d", TotalUDPBytes);
+					SI->DataBuf.buf = temp;
+					SI->DataBuf.len = strlen(temp);
+				}
 
 				//Keep writing till all bytes sent
 				while (BytesSent != SI->DataBuf.len)
 					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
-				
-				PrintIOLog(infoVector, hwnd);
 
-				TotalBytes = 0;
+				TotalTCPBytes = 0;
+				TotalUDPBytes = 0;
 				BytesSent = 0;
-				
+				PrintIOLog(infoVector, hwnd);
 			}
 			else if(strcmp(SI->Buffer, "udp") == 0)
 			{
 				//MessageBox(NULL, "got IP", "", MB_OK);
 
 				Mode = UDP_MODE;
-
+				infoVector.clear();
 				sprintf(temp, "%d", ACK);
 				SI->DataBuf.buf = temp;
 				SI->DataBuf.len = strlen(temp);
@@ -322,8 +337,10 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 					return 0;
 				} 
 			}
-			else if (atoi(SI->Buffer) != EOT && isdigit(SI->Buffer[0]))
+			else if (atoi(SI->Buffer) != EOT && strcmp(SI->Buffer, "tcp") == 0)
 			{
+				Mode = TCP_MODE;
+				infoVector.clear();
 				sprintf(temp, "%d", ACK);
 				SI->DataBuf.buf = temp;
 				SI->DataBuf.len = strlen(temp);
@@ -342,7 +359,7 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 			SI->BytesSEND += BytesTransferred;
 		}
 
-		SI->BytesRECV = 0;
+		
 
 		// Now that there are no more bytes to send post another WSARecv() request.
 
@@ -352,10 +369,9 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 
 		SI->DataBuf.len = DATA_BUFSIZE;
 		SI->DataBuf.buf = SI->Buffer;
-
+		SI->BytesRECV = 0;
 		RecvBytes = ReadSocket(&SI->Socket, &SI->DataBuf, Flags, &SI->Overlapped);
-
-		PrintIOLog(infoVector, hwnd);
+	
 	}
 	
 }
@@ -374,16 +390,16 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 	char temp[BUFFER_SIZE];
 	char Buffer[BUFFER_SIZE];
 	UDP_INFO *UDPinfo = (UDP_INFO*) lpParameter;
+	DWORD BytesRECV = 0;
 
 	DataBuf.buf = Buffer;
-	DataBuf.len = BUFFER_SIZE;
+	DataBuf.len = DATA_BUFSIZE;
 	ZeroMemory(&ol, sizeof(WSAOVERLAPPED));
 	ReadSocket(&UDPSock, &DataBuf, Flags, &ol);
 
 	while (TRUE)
 	{
-		
-
+	
 		if ((Index = WSAWaitForMultipleEvents(EventTotal, EventArray, FALSE,
 			WSA_INFINITE, FALSE)) == WSA_WAIT_FAILED)
 		{
@@ -397,25 +413,22 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 		if (WSAGetOverlappedResult(UDPSock, &ol, &BytesTransferred,
 		FALSE, &Flags) == FALSE || BytesTransferred == 0)
 		{
-			sprintf(temp, "Received bytes: %d", TotalBytes);
-			infoVector.push_back(temp);
-			
-			PrintIOLog(infoVector, UDPinfo->hwnd);
-			
-			TotalBytes = 0;
+			//PrintIOLog(infoVector, UDPinfo->hwnd);
+			//infoVector.clear();
 			return 0;
 		}
 
+		if (BytesRECV == 0)
+		{
+			BytesRECV = BytesTransferred;
+			TotalUDPBytes += BytesTransferred;
+		}
+
 		DataBuf.buf = Buffer;
-		DataBuf.len = BUFFER_SIZE;
+		DataBuf.len = DATA_BUFSIZE;
+		BytesRECV = 0;
 		ZeroMemory(&ol, sizeof(WSAOVERLAPPED));
 		ReadSocket(&UDPSock, &DataBuf, Flags, &ol);
-
-		infoVector.push_back(DataBuf.buf);
-		PrintIOLog(infoVector, UDPinfo->hwnd);
-
-		TotalBytes += BytesTransferred;
-	
 
 		 if (WSASetEvent(EventArray[0]) == FALSE)
 		  {
@@ -474,7 +487,6 @@ DWORD ReadSocket(SOCKET *sock, WSABUF *buf, DWORD fl,  WSAOVERLAPPED *ol)
 	{
 		if (WSAGetLastError() != ERROR_IO_PENDING)
 		{
-
 			sprintf(temp, "WSASRecv() failed with error %d", WSAGetLastError());
 			MessageBox(NULL, temp, "", MB_OK);
 			return 0;

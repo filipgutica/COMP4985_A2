@@ -120,6 +120,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message,
 			CheckMenu(wParam);
 
 			break;
+		case WM_CHAR:
+			hdc = GetDC(hwnd);
+			if ((char)wParam == 'c')
+			{
+				mode = IDM_CLIENT;
+				UpdateUI(mode);
+				StopServer();
+			}
+			else if ((char)wParam == 's')
+			{
+				mode = IDM_SERVER;
+				StartServer(result);
+				UpdateUI(mode);
+			}
+			else if (wParam == VK_RETURN)
+				Resolve(mode);
+			
+			ReleaseDC(hwnd, hdc);
+			break;
 		case WM_CONNECTED:
 			isConnected = TRUE;
 			break;
@@ -357,7 +376,6 @@ void Resolve(int m)
 		else if (IsDlgButtonChecked(hwnd, IDM_UDP))
 			sprintf(protocol, "udp");	
 
-
 		int size = atoi(strSize);
 		int times = atoi(strNumTimes);
 
@@ -455,7 +473,7 @@ void PopulateUIElements()
 	SendMessage(dropDown1,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("1024"));
 	SendMessage(dropDown1,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("4096"));
 	SendMessage(dropDown1,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("20480"));
-	SendMessage(dropDown1,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("65535"));
+	SendMessage(dropDown1,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("65000"));
 
 	SendMessage(dropDown2,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("1"));
 	SendMessage(dropDown2,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("10"));
