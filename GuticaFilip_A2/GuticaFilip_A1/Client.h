@@ -31,9 +31,10 @@ typedef struct IO_DATA
 	int delay;
 	char* ip;
 	char* protocol;
+	HANDLE hFile;
 };
 
-void StartClient (char *ip, char *p,int, int, char*, char*, HWND mainHwnd, HWND resultHwnd);
+void StartClient (char *ip, char *p,int, int, char*, char*, HWND mainHwnd, HWND resultHwnd, HANDLE);
 void StartTCP();
 void TCP();
 void UDP();

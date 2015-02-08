@@ -31,7 +31,7 @@ IO_DATA ioInfo;
 struct	hostent	*hp;
 struct	sockaddr_in server, client;
 
-void StartClient (char *ip, char *p, int size, int numTimes, char *protocol, char *delay, HWND mainHwnd, HWND resultHwnd)
+void StartClient (char *ip, char *p, int size, int numTimes, char *protocol, char *delay, HWND mainHwnd, HWND resultHwnd, HANDLE h)
 {
 	ioInfo.hWndResult = resultHwnd;
 	ioInfo.hWnd = mainHwnd;
@@ -41,7 +41,7 @@ void StartClient (char *ip, char *p, int size, int numTimes, char *protocol, cha
 	ioInfo.ip =	ip;
 	ioInfo.port = atoi(p);	// User specified port
 	ioInfo.delay = atoi(delay);
-	
+	ioInfo.hFile = h;
 	//Start TCP as we will always have a TCP control channel
 	StartTCP();
 }
@@ -135,12 +135,11 @@ void UDP()
 			server_len = sizeof(server);
 			for (int i = 0; i < ioInfo.numtimes; i++)
 			{
-		
-				sprintf(usbuf, "%s", "hello");
+				std::string s('c', ioInfo.size);
+				sprintf(usbuf, s.c_str());
 				
 				Sleep(ioInfo.delay);
 				sendto (DataSocket, usbuf, ioInfo.size, 0, (struct sockaddr *)&server, server_len);
-				
 			}
 			
 			break;
@@ -149,15 +148,17 @@ void UDP()
 	t = clock() - t;
 
 	sprintf(sbuf, "%d", EOT);
-	Sleep(10);
+	Sleep(ioInfo.delay);
 	send (ioInfo.sock, sbuf, strlen(sbuf), 0);
-
-	while (n = recv (ioInfo.sock, bp, 1024, 0) < 4);
-
+	Sleep(ioInfo.delay);
+	bp = rbuf;
+	
+	n = recv (ioInfo.sock, bp, 1024, 0);
+	
 	n = 0;
 	timeNoDelay = ((float)t/CLOCKS_PER_SEC) - ((ioInfo.delay * ioInfo.numtimes)/CLOCKS_PER_SEC);
-	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec \ttime(minus delay): %f",
-		totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC), timeNoDelay);
+	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec \ttime(minus delay): %f \t Protocol: %s",
+		totalSize, atoi(rbuf), ((float)t/CLOCKS_PER_SEC), timeNoDelay, ioInfo.protocol);
 	SetWindowText(ioInfo.hWndResult, temp);
 
 	Sleep(1000);
@@ -176,6 +177,7 @@ void TCP()
 	int ns = 0; 
 	int n, bytes_to_read;
 	int i = 0;
+	DWORD dwWritten;
 	float timeNoDelay;
 	SOCKET dataSock;
 	clock_t t;
@@ -199,13 +201,13 @@ void TCP()
 		n = recv (ioInfo.sock, bp, 1024, 0);
 	
 		if (atoi(rbuf) == ACK)
-		{
-			t = clock();
-			
+		{	
 			n = 0;
 
 			dataSock = CreateTCPSocket();
-		
+
+			t = clock();
+
 			for (int i = 0; i < ioInfo.numtimes; i++)
 			{
 				if (i == (ioInfo.numtimes - 1))
@@ -238,17 +240,20 @@ void TCP()
 	n = 0;
 
 	dataBP = dataBuff;
-	while (n = recv(dataSock, dataBP, 1024, 0) < 4)
-	{
-		if (n == 0)
-			break;
-	}	
+	n = recv(dataSock, dataBP, 1024, 0);
+
 			
 	//if(atoi(rbuf) != 6)
 	timeNoDelay = ((float)t/CLOCKS_PER_SEC) - ((ioInfo.delay * ioInfo.numtimes)/CLOCKS_PER_SEC);
-	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec \ttime(minus delay): %f",
-		totalSize, atoi(dataBuff), ((float)t/CLOCKS_PER_SEC), timeNoDelay);
+	sprintf(temp, "Sent: %d bytes \t Server got %d bytes \t time: %f sec \ttime(minus delay): %f \t Protocol: %s\n",
+		totalSize, atoi(dataBuff), ((float)t/CLOCKS_PER_SEC), timeNoDelay, ioInfo.protocol);
 	SetWindowText(ioInfo.hWndResult, temp);
+
+	sprintf(temp, "%d,  %d, %f, %f, %s\n", totalSize, atoi(dataBuff), 
+		((float)t/CLOCKS_PER_SEC), timeNoDelay, ioInfo.protocol);
+
+	SetFilePointer( ioInfo.hFile, 0, NULL, FILE_END);
+	WriteFile(ioInfo.hFile, temp,strlen(temp),&dwWritten,NULL);
 
 	//Give the server a chance to finish sending then close sockets
 	Sleep(1000);
@@ -274,7 +279,7 @@ SOCKET CreateTCPSocket()
 	if ((hp = gethostbyname(ioInfo.ip)) == NULL)
 	{
 		fprintf(stderr, "Unknown server address\n");
-		//exit(1);
+		return 0;
 	}
 
 	// Copy the server address
@@ -285,6 +290,7 @@ SOCKET CreateTCPSocket()
 	{
 		fprintf(stderr, "Can't connect to server\n");
 		perror("connect");
+		return 0;
 	}
 	
 	return temp;
@@ -296,7 +302,7 @@ SOCKET CreateUDPSocket()
 	SOCKET temp;
 
 	// Create a datagram socket
-	if ((temp = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
+	if ((temp = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 	{
 		perror ("Can't create a socket\n");
 		exit(1);

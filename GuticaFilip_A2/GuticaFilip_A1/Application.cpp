@@ -33,6 +33,7 @@
 
 #pragma warning (disable: 4096)
 
+HANDLE hFile;
 BOOL isConnected;
 int clientWidth;
 int clientHeight;
@@ -69,6 +70,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hprevInstance, LPSTR lspszCmdParam
 	PopulateUIElements();
 
 	UIControl();
+
+	hFile=CreateFile(
+		"results.txt",
+		FILE_GENERIC_WRITE,FILE_SHARE_READ|
+		FILE_SHARE_WRITE|FILE_APPEND_DATA,
+		0,CREATE_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL,0);
 
 	while (GetMessage(&Msg, NULL, 0, 0))
 	{
@@ -390,7 +398,7 @@ void Resolve(int m)
 		int times = atoi(strNumTimes);
 
 	
-		StartClient(strIP, strPort, size, times, protocol, strDelay, hwnd, result);
+		StartClient(strIP, strPort, size, times, protocol, strDelay, hwnd, result, hFile);
 		
 		
 		break;

@@ -10,8 +10,8 @@ SOCKET ListenSocket, AcceptSocket, ControlSocket, UDPSock;
 HANDLE hThrdIO, hThrdListen, hThrdUDP;
 vector<string> infoVector;
 INT Mode;
-INT TotalTCPBytes;
-INT TotalUDPBytes;
+INT TotalTCPBytes = 0;
+INT TotalUDPBytes = 0;
 
 void StartServer(HWND h)
 {
@@ -237,12 +237,12 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 			
 			TotalTCPBytes = 0;
 
-			TerminateThread(hThrdUDP, 0);
-
 			if (closesocket(SI->Socket) == SOCKET_ERROR)
 			{
 				printf("closesocket() failed with error %d\n", WSAGetLastError());
 			}
+
+			TerminateThread(hThrdUDP, 0);
 
 			GlobalFree(SI);
 			WSACloseEvent(EventArray[Index - WSA_WAIT_EVENT_0]);
@@ -378,9 +378,6 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 
 DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 {
-	WSAEVENT Events[WSA_MAXIMUM_WAIT_EVENTS];
-	DWORD EventCount = 1;
-	SOCKADDR_IN InternetAddr;
 	DWORD Index;
 	DWORD BytesTransferred;
 	DWORD Flags = 0;
@@ -415,7 +412,7 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 		{
 			//PrintIOLog(infoVector, UDPinfo->hwnd);
 			//infoVector.clear();
-			return 0;
+			//return 0;
 		}
 
 		if (BytesRECV == 0)
@@ -435,6 +432,8 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 			 printf("WSASetEvent failed with error %d\n", WSAGetLastError());
 			 return 0;
 		  }
+
+		 BytesTransferred = 0;
 	}
 }
 
