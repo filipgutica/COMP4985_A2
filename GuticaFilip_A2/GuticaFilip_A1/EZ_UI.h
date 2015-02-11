@@ -1,3 +1,21 @@
+/*---------------------------------------------------------------------------------------
+--	SOURCE FILE:	EZ_UI.h -		Header file for EZ_UI.cpp
+--									Contains function headers for this file.
+--
+--	PROGRAM:		Network_Resolver
+--
+--
+--	DATE:			February 9, 2015
+--
+--	REVISIONS:		(Date and Description)
+--
+--	DESIGNERS:		Filip Gutica
+--
+--	PROGRAMMER:		Filip Gutica
+--
+--	NOTES:
+--     
+---------------------------------------------------------------------------------------*/
 #ifndef EZ_UI_H
 #define EZ_UI_H
 

@@ -1,6 +1,38 @@
+/*---------------------------------------------------------------------------------------
+--	SOURCE FILE:		Server.cpp - TCP and UDP server using the Overlapped I/O model.
+--									 This application listens for TCP connections then
+--									 listens for what protocol will be used, begins listening
+--									 for data, upon receiving an EOT it will send back to the
+--									 client how many bytes were received.
+--
+--	PROGRAM:			Assignment2.exe
+--
+--	FUNCTIONS:			StartServer
+--						ListenThread
+--						ProcessTCP_IO
+--						ProcessUDP_IO
+--						PrintIOLog
+--						WriteTOSocket
+--						ReadSocket
+--
+--	DATE:				Febuary 9 2015
+--
+--	DESIGNERS:			Filip Gutica
+--
+--	PROGRAMMERS:		Filip Gutica
+--
+--	NOTES:
+--	This program will create a UDP socket and TCP listen socket and listen for any connections.
+--	When it receives a connection, it will listen for what protocol is being used.
+--  If it gets TCP it will continue as it was. If it gets UDP it will also start the UDP IO
+--  thread to process UDP IO. Upon receiving an EOT on the TCP channel, the server will send
+--  back to the client how many bytes it received.
+--
+--	I used the sample code given to us in class called overlap.cpp in order to help me with
+--	implementing this server.
+--
+---------------------------------------------------------------------------------------*/
 #include "Server.h"
-
-
 
 DWORD EventTotal = 0;
 WSAEVENT EventArray[WSA_MAXIMUM_WAIT_EVENTS];
@@ -9,10 +41,24 @@ CRITICAL_SECTION CriticalSection;
 SOCKET ListenSocket, AcceptSocket, ControlSocket, UDPSock;
 HANDLE hThrdIO, hThrdListen, hThrdUDP;
 vector<string> infoVector;
-INT Mode;
-INT TotalTCPBytes = 0;
-INT TotalUDPBytes = 0;
+int Mode;
+int TotalTCPBytes = 0;
+int TotalUDPBytes = 0;
 
+
+/*------------------------------------------------------------------------------
+--	FUNCTION: StartServer()
+--
+--	PURPOSE:		Initializes the server. Creates the UDP socket and TCP listen
+--					sockets and starts the listen and process IO threads.
+--
+--	PARAMETERS:
+--		HWND h		-handle to the results textbox to display log info.
+--
+--	DESIGNERS:		Filip Gutica & In class example overlap.cpp
+--
+--	PROGRAMMER:		Filip Gutica & In class example overlap.cpp
+/*-----------------------------------------------------------------------------*/
 void StartServer(HWND h)
 {
 	WSADATA wsaData;
@@ -48,10 +94,6 @@ void StartServer(HWND h)
 		PrintIOLog(infoVector, h);
 		return;
 	}
-
-	sprintf(temp, "%d", DATA_BUFSIZE);
-	if (setsockopt(UDPSock, SOL_SOCKET, SO_RCVBUF, temp, 5))
-		MessageBox(NULL, "Couldn't change UDP recieve buffer size!", "Error", MB_OK);
 
 	InternetAddr.sin_family = AF_INET;
 	InternetAddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -113,7 +155,18 @@ void StartServer(HWND h)
 }
 
 
-
+/*------------------------------------------------------------------------------
+--	FUNCTION: ListenThread()
+--
+--	PURPOSE:		Listens for incomming connections
+--
+--	PARAMETERS:
+--		LPVOID lpParameter		-Parameter for the thread
+--
+--	DESIGNERS:		Filip Gutica & In class example overlap.cpp
+--
+--	PROGRAMMER:		Filip Gutica & In class example overlap.cpp
+/*-----------------------------------------------------------------------------*/
 DWORD WINAPI ListenThread(LPVOID lpParameter)
 {
 	DWORD Flags;
@@ -145,8 +198,7 @@ DWORD WINAPI ListenThread(LPVOID lpParameter)
 	   sprintf(temp, "Accepted connection: %d", AcceptSocket);
 	   infoVector.push_back(temp);
 
-      // Fill in the details of our accepted socket.7
-	
+      // Fill in the details of our accepted socket
 	  SocketArray[EventTotal]->Socket = AcceptSocket;
       ZeroMemory(&(SocketArray[EventTotal]->Overlapped), sizeof(OVERLAPPED));
       SocketArray[EventTotal]->BytesSEND = 0;
@@ -162,7 +214,6 @@ DWORD WINAPI ListenThread(LPVOID lpParameter)
       }
 
       //Read the socket to begin receiving data
-
       Flags = 0;
 	  RecvBytes = ReadSocket(&SocketArray[EventTotal]->Socket, 
 		  &(SocketArray[EventTotal]->DataBuf), Flags, 
@@ -185,6 +236,19 @@ DWORD WINAPI ListenThread(LPVOID lpParameter)
 
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: ProcessTCP_IO()
+--
+--	PURPOSE:		Processes IO on the TCP channel
+--
+--	PARAMETERS:
+--		LPVOID lpParameter		-Parameter for the thread, Will be the
+--								 handle to the window where results are to be displayed
+--
+--	DESIGNERS:		Filip Gutica & In class example overlap.cpp
+--
+--	PROGRAMMER:		Filip Gutica & In class example overlap.cpp
+/*-----------------------------------------------------------------------------*/
 DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 {
 	DWORD Index;
@@ -195,6 +259,7 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 	DWORD RecvBytes = 0;
 	DWORD BytesSent = 0;
 	DWORD UDPthreadID;
+	string ReceivedData;
 	char temp[TEMP_BUFSIZE];
 	HWND hwnd = (HWND)lpParameter;
 	UDP_INFO *udpInfo;
@@ -224,6 +289,7 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 		}
 
 		SI = SocketArray[Index - WSA_WAIT_EVENT_0];
+		//Control socket is the first socket in the array after the listen socket.
 		ControlSocket = SocketArray[1]->Socket;
 	
 		WSAResetEvent(EventArray[Index - WSA_WAIT_EVENT_0]);
@@ -267,9 +333,7 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 			continue;
 		}
 
-		// Check to see if the BytesRECV field equals zero. If this is so, then
-		// this means a WSARecv call just completed so update the BytesRECV field
-		// with the BytesTransferred value from the completed WSARecv() call.
+		/*BytesRECV is 0, read socket call finished check received data.*/
 		if (SI->BytesRECV == 0)
 		{
 			SI->BytesRECV = BytesTransferred;
@@ -283,8 +347,10 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 			ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
 			SI->Overlapped.hEvent = EventArray[Index - WSA_WAIT_EVENT_0];
 
-				// Check for control characters
-			if (atoi(SI->Buffer) == EOT)
+			ReceivedData += SI->Buffer;
+
+			// Check for control characters
+			if (atoi(SI->Buffer) == EOT) //End of Transmission
 			{
 				sprintf(temp, "Total Received TCP bytes: %d", TotalTCPBytes);
 				infoVector.push_back(temp);
@@ -298,70 +364,38 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 					SI->DataBuf.buf = temp;
 					SI->DataBuf.len = strlen(temp);
 				}
-				else
+				else if (Mode == UDP_MODE)
 				{
 					sprintf(temp, "%d", TotalUDPBytes);
 					SI->DataBuf.buf = temp;
 					SI->DataBuf.len = strlen(temp);
 				}
-
-				//Keep writing till all bytes sent
-				while (BytesSent != SI->DataBuf.len)
-					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
+	
+				BytesSent = WriteToSocket(&SI->Socket, &SI->DataBuf, &SI->Overlapped);
 
 				TotalTCPBytes = 0;
 				TotalUDPBytes = 0;
 				BytesSent = 0;
 				PrintIOLog(infoVector, hwnd);
 			}
-			else if(strcmp(SI->Buffer, "udp") == 0)
+			else if(strcmp(SI->Buffer, "udp") == 0) //UDP mode start the UDP IO thread.
 			{
-				//MessageBox(NULL, "got IP", "", MB_OK);
-
 				Mode = UDP_MODE;
 				infoVector.clear();
-				sprintf(temp, "%d", ACK);
-				SI->DataBuf.buf = temp;
-				SI->DataBuf.len = strlen(temp);
-
-				while(BytesSent != SI->DataBuf.len) 
-				{
-					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
-				}
-
-				BytesSent = 0;
 
 				if ((hThrdUDP = CreateThread(NULL, 0, ProcessUDP_IO, (LPVOID)udpInfo, 0, &UDPthreadID)) == NULL)
 				{
 					printf("CreateThread failed with error %d\n", GetLastError());
 					return 0;
 				} 
-			}
-			else if (atoi(SI->Buffer) != EOT && strcmp(SI->Buffer, "tcp") == 0)
+			} 
+			else if (strcmp(SI->Buffer, "tcp") == 0) //TCP mode
 			{
 				Mode = TCP_MODE;
 				infoVector.clear();
-				sprintf(temp, "%d", ACK);
-				SI->DataBuf.buf = temp;
-				SI->DataBuf.len = strlen(temp);
-
-				while(BytesSent != SI->DataBuf.len) 
-				{
-					BytesSent = WriteToSocket(SI->Socket, SI->DataBuf, SI->Overlapped);
-				}
-
-				BytesSent = 0;
 			}
 			
-		}
-		else
-		{
-			SI->BytesSEND += BytesTransferred;
-		}
-
-		
-
-		// Now that there are no more bytes to send post another WSARecv() request.
+		}	
 
 		Flags = 0;
 		ZeroMemory(&(SI->Overlapped), sizeof(WSAOVERLAPPED));
@@ -371,15 +405,26 @@ DWORD WINAPI ProcessTCP_IO(LPVOID lpParameter)
 		SI->DataBuf.buf = SI->Buffer;
 		SI->BytesRECV = 0;
 		RecvBytes = ReadSocket(&SI->Socket, &SI->DataBuf, Flags, &SI->Overlapped);
-	
 	}
-	
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: ProcessUDP_IO()
+--
+--	PURPOSE:		Processes IO on the UDP channel
+--
+--	PARAMETERS:
+--		LPVOID lpParameter		-Parameter for the thread, Will be the handle 
+--								 to the window where results are to be displayed
+--
+--	DESIGNERS:		Filip Gutica 
+--
+--	PROGRAMMER:		Filip Gutica 
+/*-----------------------------------------------------------------------------*/
 DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 {
 	DWORD Index;
-	DWORD BytesTransferred;
+	DWORD BytesTransferred = 0;
 	DWORD Flags = 0;
 	DWORD RecvBytes;
 	WSABUF DataBuf;
@@ -389,16 +434,15 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 	UDP_INFO *UDPinfo = (UDP_INFO*) lpParameter;
 	DWORD BytesRECV = 0;
 
-	DataBuf.buf = Buffer;
-	DataBuf.len = DATA_BUFSIZE;
-	ZeroMemory(&ol, sizeof(WSAOVERLAPPED));
-	ReadSocket(&UDPSock, &DataBuf, Flags, &ol);
-
 	while (TRUE)
 	{
+		DataBuf.buf = Buffer;
+		DataBuf.len = DATA_BUFSIZE;
+		ZeroMemory(&ol, sizeof(WSAOVERLAPPED));
+		ReadSocket(&UDPSock, &DataBuf, Flags, &ol);
 	
 		if ((Index = WSAWaitForMultipleEvents(EventTotal, EventArray, FALSE,
-			WSA_INFINITE, FALSE)) == WSA_WAIT_FAILED)
+			100, FALSE)) == WSA_WAIT_FAILED)
 		{
 			sprintf(temp, "WSAWaitForMultipleEvents failed %d\n", WSAGetLastError());
 			infoVector.push_back(temp);
@@ -407,18 +451,18 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 
 		WSAResetEvent(EventArray[Index - WSA_WAIT_EVENT_0]);
 
-		if (WSAGetOverlappedResult(UDPSock, &ol, &BytesTransferred,
-		FALSE, &Flags) == FALSE || BytesTransferred == 0)
+		if (WSAGetOverlappedResult(UDPSock, &ol, &BytesTransferred, FALSE, &Flags) == FALSE)
 		{
-			//PrintIOLog(infoVector, UDPinfo->hwnd);
-			//infoVector.clear();
-			//return 0;
+			break;
 		}
+
+		TotalUDPBytes += BytesTransferred;
 
 		if (BytesRECV == 0)
 		{
+			//infoVector.push_back(DataBuf.buf);
+			//PrintIOLog(infoVector, UDPinfo->hwnd);
 			BytesRECV = BytesTransferred;
-			TotalUDPBytes += BytesTransferred;
 		}
 
 		DataBuf.buf = Buffer;
@@ -427,16 +471,28 @@ DWORD WINAPI ProcessUDP_IO(LPVOID lpParameter)
 		ZeroMemory(&ol, sizeof(WSAOVERLAPPED));
 		ReadSocket(&UDPSock, &DataBuf, Flags, &ol);
 
-		 if (WSASetEvent(EventArray[0]) == FALSE)
-		  {
-			 printf("WSASetEvent failed with error %d\n", WSAGetLastError());
-			 return 0;
-		  }
-
-		 BytesTransferred = 0;
+		if (WSASetEvent(EventArray[0]) == FALSE)
+		{
+			printf("WSASetEvent failed with error %d\n", WSAGetLastError());
+			return 0;
+		}
 	}
 }
 
+
+/*------------------------------------------------------------------------------
+--	FUNCTION: PrintIOLog()
+--
+--	PURPOSE:		Helper function to display results to the screen
+--
+--	PARAMETERS:
+--		vector v	-Vector of log info to be displayed
+--		HWND h		-Handle to the window where data is to be displayed
+--
+--	DESIGNERS:		Filip Gutica 
+--
+--	PROGRAMMER:		Filip Gutica
+/*-----------------------------------------------------------------------------*/
 void PrintIOLog(vector<string> v , HWND h)
 {
 	string result = "";
@@ -456,14 +512,32 @@ void PrintIOLog(vector<string> v , HWND h)
 
 }
 
-
-DWORD WriteToSocket(SOCKET sock, WSABUF buf, WSAOVERLAPPED ol)
+/*------------------------------------------------------------------------------
+--	FUNCTION: WriteToSocket()
+--
+--	PURPOSE:		Wrapper function for writing data to a WSASocket using 
+--					WSASend and overlapped structures
+--
+--	PARAMETERS:
+--			SOCKET *sock		-Socket to write to
+--			WSABUF *buf			-Buffer to be written
+--			WSAOVERLAPPED *ol	-Overlapped structure to be used for Overlapped I/O
+--
+--	Return:
+			DWORD	Number of bytes written.
+--
+--	DESIGNERS:		Filip Gutica 
+--
+--	PROGRAMMER:		Filip Gutica 
+--
+/*-----------------------------------------------------------------------------*/
+DWORD WriteToSocket(SOCKET *sock, WSABUF *buf, WSAOVERLAPPED *ol)
 {
 	DWORD sb;
 	char temp[64];
 
-	if (WSASend(sock, &buf, 1, &sb, 0,
-		&ol, NULL) == SOCKET_ERROR)
+	if (WSASend(*sock, buf, 1, &sb, 0,
+		ol, NULL) == SOCKET_ERROR)
 	{
 		if (WSAGetLastError() != ERROR_IO_PENDING)
 		{
@@ -476,6 +550,26 @@ DWORD WriteToSocket(SOCKET sock, WSABUF buf, WSAOVERLAPPED ol)
 	return sb;
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: ReadSocket()
+--
+--	PURPOSE:		Wrapper function for receiving data from a WSASocket using 
+--					WSARecv and overlapped structures
+--
+--	PARAMETERS:
+--			SOCKET *sock		-Socket to receive from
+--			WSABUF *buf			-Receive buffer
+--			DWORD fl			-Flags
+--			WSAOVERLAPPED *ol	-Overlapped structure to be used for Overlapped I/O
+--
+--	Return:
+			DWORD	Number of bytes written.
+--
+--	DESIGNERS:		Filip Gutica 
+--
+--	PROGRAMMER:		Filip Gutica 
+--
+/*-----------------------------------------------------------------------------*/
 DWORD ReadSocket(SOCKET *sock, WSABUF *buf, DWORD fl,  WSAOVERLAPPED *ol)
 {
 	DWORD rb;
@@ -496,6 +590,22 @@ DWORD ReadSocket(SOCKET *sock, WSABUF *buf, DWORD fl,  WSAOVERLAPPED *ol)
 	return rb;
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: StopServer()
+--
+--	PURPOSE:		Stop the server do any necesarry cleanup
+--
+--	PARAMETERS:
+--			void
+--
+--	Return:
+			void
+--
+--	DESIGNERS:		Filip Gutica 
+--
+--	PROGRAMMER:		Filip Gutica 
+--
+/*-----------------------------------------------------------------------------*/
 void StopServer()
 {
 	if (closesocket(UDPSock) == SOCKET_ERROR)

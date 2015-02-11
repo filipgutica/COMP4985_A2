@@ -1,10 +1,7 @@
 /*---------------------------------------------------------------------------------------
---	SOURCE FILE:	Application.c - Simple, menu driven program to resolve user entered
---									Host, ip address, Service, or port info
---									This File represents the main UI implementation of
---									this application.
+--	SOURCE FILE:	Application.cpp
 --
---	PROGRAM:		Network_Resolver
+--	PROGRAM:		Assignment2
 --
 --	FUNCTIONS:		WinMain
 --					WndProc
@@ -14,7 +11,7 @@
 --					Resolve
 --					ClearText
 --
---	DATE:			January 14, 2015
+--	DATE:			February 9, 2015
 --
 --	REVISIONS:		(Date and Description)
 --
@@ -33,10 +30,35 @@
 
 #pragma warning (disable: 4096)
 
-HANDLE hFile;
+/*---------------------------------------------------------------------------------------
+--	Global declarations for the window handles to the UI elements. These accessed
+--	at many points in the application and I have decided to make them global declarations
+--	for that reason.
+---------------------------------------------------------------------------------------*/
+HWND hwnd;
+HWND editCtlIP;
+HWND editCtlPort;
+HWND btn;
+HWND labelIP;
+HWND labelPort;
+HWND result;
+HWND radioTCP;
+HWND radioUDP;
+HWND dropDown1;
+HWND labelSize;
+HWND labelNumTimes;
+HWND dropDown2;
+HWND dropDownDelay;
+HWND labelDelay;
+HANDLE fLostBytes;
+HANDLE fTime;
+//Device Context
+HDC hdc;
+
+INT mode;
 BOOL isConnected;
-int clientWidth;
-int clientHeight;
+INT clientWidth;
+INT clientHeight;
 /*------------------------------------------------------------------------------
 --	FUNCTION: WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 --
@@ -71,11 +93,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hprevInstance, LPSTR lspszCmdParam
 
 	UIControl();
 
-	hFile=CreateFile(
-		"results.txt",
-		FILE_GENERIC_WRITE,FILE_SHARE_READ|
-		FILE_SHARE_WRITE|FILE_APPEND_DATA,
-		0,CREATE_ALWAYS,
+	fLostBytes=CreateFile(
+		"LostBytes.csv",
+		FILE_APPEND_DATA,
+		FILE_SHARE_READ,
+		NULL,OPEN_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL,0);
+
+	fTime=CreateFile(
+		"Time.csv",
+		FILE_APPEND_DATA,
+		FILE_SHARE_READ,
+		NULL,OPEN_ALWAYS,
 		FILE_ATTRIBUTE_NORMAL,0);
 
 	while (GetMessage(&Msg, NULL, 0, 0))
@@ -187,26 +216,14 @@ void CheckMenu(WPARAM wP)
 		mode = IDM_SERVER;
 		StartServer(result);
 		UpdateUI(mode);
-		//SetWindowText(result, "");
 		break;
 	case IDM_OP2:
 		mode = IDM_CLIENT;
 		UpdateUI(mode);
 		StopServer();
-		//SetWindowText(result, "");
 		break;
 	case IDM_HELP:
 
-			ShellExecute(
-				NULL, 
-				"open" , 
-				"excel" , 
-				"output.csv", 
-				NULL,
-				SW_SHOW);
-
-			MessageBox(NULL, "Set your port configuration before connecting.",
-								"Help", MB_OK);
 		break;
 	case IDM_BTN:
 
@@ -326,7 +343,7 @@ void InstantiateUI()
 
 	labelPort =		CreateLabel("Port ", 10, 50, labelWidth, labelHeight, hwnd);
 
-	editCtlPort =	CreateEditCtrl("7000", editCtrl_X, 50, 140, 25, hwnd);
+	editCtlPort =	CreateEditCtrl("7575", editCtrl_X, 50, 140, 25, hwnd);
 
 	radioTCP =		CreateRadioBtn("TCP ", radio_X, 10, 75, 25,(HMENU) IDM_TCP, hwnd);
 
@@ -398,7 +415,7 @@ void Resolve(int m)
 		int times = atoi(strNumTimes);
 
 	
-		StartClient(strIP, strPort, size, times, protocol, strDelay, hwnd, result, hFile);
+		StartClient(strIP, strPort, size, times, protocol, strDelay, hwnd, result, fLostBytes, fTime);
 		
 		
 		break;
@@ -425,6 +442,18 @@ void ClearText()
 	SetWindowText(result, "");
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: CommandUIstate()
+--
+--	PURPOSE:		Set the UI state to Command mode
+--
+--	PARAMETERS:
+--		void					
+--
+--	DESIGNERS:		Filip Gutica
+--
+--	PROGRAMMER:		Filip Gutica
+/*-----------------------------------------------------------------------------*/
 void CommandUIstate()
 {
 	ShowWindow(result, FALSE);
@@ -443,6 +472,18 @@ void CommandUIstate()
 	ShowWindow(dropDownDelay, FALSE);
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: ServerUIstate()
+--
+--	PURPOSE:		Set the UI state to server mode
+--
+--	PARAMETERS:
+--		void					
+--
+--	DESIGNERS:		Filip Gutica
+--
+--	PROGRAMMER:		Filip Gutica
+/*-----------------------------------------------------------------------------*/
 void ServerUIstate()
 {
 	MoveWindow(hwnd, 50, 50, 400, 200, 1);
@@ -463,6 +504,18 @@ void ServerUIstate()
 	ShowWindow(dropDownDelay, FALSE);
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: ClientUIstate()
+--
+--	PURPOSE:		Set the UI state to client mode
+--
+--	PARAMETERS:
+--		void					
+--
+--	DESIGNERS:		Filip Gutica
+--
+--	PROGRAMMER:		Filip Gutica
+/*-----------------------------------------------------------------------------*/
 void ClientUIstate()
 {	
 	MoveWindow(hwnd, 50, 50, 700, 500, 1);
@@ -483,13 +536,36 @@ void ClientUIstate()
 	ShowWindow(dropDownDelay, TRUE);
 }
 
-
+/*------------------------------------------------------------------------------
+--	FUNCTION: UIControl()
+--
+--	PURPOSE:		Set the max length to the text boxes
+--
+--	PARAMETERS:
+--		void					
+--
+--	DESIGNERS:		Filip Gutica
+--
+--	PROGRAMMER:		Filip Gutica
+/*-----------------------------------------------------------------------------*/
 void UIControl()
 {
 	SendMessage(editCtlIP, EM_SETLIMITTEXT, (WPARAM)BUFFER_SIZE - 1, (LPARAM)0);
 	SendMessage(editCtlPort, EM_SETLIMITTEXT, (WPARAM)BUFFER_SIZE - 1, (LPARAM)0);
 }
 
+/*------------------------------------------------------------------------------
+--	FUNCTION: PopulateUIElements()
+--
+--	PURPOSE:		Populate the list boxes
+--
+--	PARAMETERS:
+--		void					
+--
+--	DESIGNERS:		Filip Gutica
+--
+--	PROGRAMMER:		Filip Gutica
+/*-----------------------------------------------------------------------------*/
 void PopulateUIElements()
 {
 	SendMessage(dropDown1,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM) TEXT("1024"));

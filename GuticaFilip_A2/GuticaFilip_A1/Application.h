@@ -7,7 +7,7 @@
 --	PROGRAM:		Network_Resolver
 --
 --
---	DATE:			January 14, 2015
+--	DATE:			February 9, 2015
 --
 --	REVISIONS:		(Date and Description)
 --
@@ -25,30 +25,7 @@
 #include "Client.h"
 #include "EZ_UI.h"
 
-/*---------------------------------------------------------------------------------------
---	Global declarations for the window handles to the UI elements. These accessed
---	at many points in the application and I have decided to make them global declarations
---	for that reason.
----------------------------------------------------------------------------------------*/
-HWND hwnd;
-HWND editCtlIP;
-HWND editCtlPort;
-HWND btn;
-HWND labelIP;
-HWND labelPort;
-HWND result;
-HWND radioTCP;
-HWND radioUDP;
-HWND dropDown1;
-HWND labelSize;
-HWND labelNumTimes;
-HWND dropDown2;
-HWND dropDownDelay;
-HWND labelDelay;
-//Device Context
-HDC hdc;
 
-int mode;
 
 //Function Headers
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
